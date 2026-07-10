@@ -226,33 +226,44 @@ export default function Home() {
   }
 
   return (
-    <main>
-      <h1>
-        Macro<span>Chef</span>
-      </h1>
-      <p className="tagline">
-        Enter your macros and a craving — get a real recipe adapted to fit,
-        with the total nutrition and where to buy the ingredients near you.
-      </p>
+    <>
+      <header className="site-header">
+        <div className="site-header-inner">
+          <div className="brand">
+            🥗 Macro<span className="grad-text">Chef</span>
+          </div>
+          <div className="tabs">
+            <button
+              type="button"
+              className={mode === "find" ? "tab active" : "tab"}
+              onClick={() => switchMode("find")}
+            >
+              Find a meal
+            </button>
+            <button
+              type="button"
+              className={mode === "link" ? "tab active" : "tab"}
+              onClick={() => switchMode("link")}
+            >
+              Analyze a link
+            </button>
+          </div>
+        </div>
+      </header>
+      <main>
+      <div className="hero">
+        <h1>
+          Eat what you crave.
+          <br />
+          <span className="grad-text">Hit your macros.</span>
+        </h1>
+        <p className="tagline">
+          Real recipes adapted to your targets — portion-sized, priced, and
+          mapped to grocery stores near you.
+        </p>
+      </div>
 
       <DailyBar log={dailyLog} />
-
-      <div className="tabs">
-        <button
-          type="button"
-          className={mode === "find" ? "tab active" : "tab"}
-          onClick={() => switchMode("find")}
-        >
-          Find a meal
-        </button>
-        <button
-          type="button"
-          className={mode === "link" ? "tab active" : "tab"}
-          onClick={() => switchMode("link")}
-        >
-          Analyze a recipe link
-        </button>
-      </div>
 
       {mode === "link" && (
         <form className="card" onSubmit={submitLink}>
@@ -384,6 +395,7 @@ export default function Home() {
 
       {plan && (
         <>
+          <div className="results-top">
           <div className="card">
             {plan.imageUrl && (
               // eslint-disable-next-line @next/next/no-img-element
@@ -405,7 +417,10 @@ export default function Home() {
           </div>
 
           <div className="card">
-            <h2>Your portion, sized to your macros</h2>
+            <h2>
+              <span className="icon">🎯</span>
+              Your portion, sized to your macros
+            </h2>
             <div className="portion-rec">
               🍽️ Eat <strong>{describePortion(plan.fitMultiplier)}</strong> to
               best match your targets
@@ -430,10 +445,14 @@ export default function Home() {
               onAdd={dailyLog.addMeal}
             />
           </div>
+          </div>
 
           {plan.swaps.length > 0 && (
             <div className="card">
-              <h2>Ingredient swaps</h2>
+              <h2>
+                <span className="icon">🔄</span>
+                Ingredient swaps
+              </h2>
               {plan.swaps.map((s, i) => (
                 <div className="swap" key={i}>
                   <span className="from">{s.original}</span>
@@ -447,6 +466,7 @@ export default function Home() {
 
           <div className="card">
             <h2>
+              <span className="icon">🧾</span>
               Ingredients
               {plan.recipeCost !== null && (
                 <span className="cost-badge">
@@ -479,7 +499,10 @@ export default function Home() {
           </div>
 
           <div className="card">
-            <h2>Shopping list by aisle</h2>
+            <h2>
+              <span className="icon">🛒</span>
+              Shopping list by aisle
+            </h2>
             <p className="log-help">
               Grouped the way a store is laid out — check items off as you go.
             </p>
@@ -487,7 +510,10 @@ export default function Home() {
           </div>
 
           <div className="card">
-            <h2>Instructions</h2>
+            <h2>
+              <span className="icon">👨‍🍳</span>
+              Instructions
+            </h2>
             <ol className="plain">
               {plan.instructions.map((step, i) => (
                 <li key={i}>{step}</li>
@@ -496,7 +522,10 @@ export default function Home() {
           </div>
 
           <div className="card">
-            <h2>Where to buy near you</h2>
+            <h2>
+              <span className="icon">📍</span>
+              Where to buy near you
+            </h2>
             {plan.stores.map((s, i) => (
               <div className="store" key={i}>
                 <span className="name">{s.name}</span>
@@ -512,7 +541,10 @@ export default function Home() {
           </div>
 
           <div className="card">
-            <h2>Log this meal in your food diary</h2>
+            <h2>
+              <span className="icon">📒</span>
+              Log this meal in your food diary
+            </h2>
             <p className="log-help">
               MyFitnessPal and MyNetDiary don&apos;t allow outside apps to add
               food automatically, but both have a <strong>Quick Add</strong>{" "}
@@ -581,7 +613,10 @@ export default function Home() {
           </div>
 
           <div className="card">
-            <h2>Ingredients &amp; nutrition facts</h2>
+            <h2>
+              <span className="icon">🧾</span>
+              Ingredients &amp; nutrition facts
+            </h2>
             <div className="nutri-list">
               {analysis.ingredients.map((ing, i) => (
                 <div
@@ -610,6 +645,7 @@ export default function Home() {
 
           <div className="card">
             <h2>
+              <span className="icon">🎯</span>
               {analysis.perServing
                 ? "Nutrition per serving (estimated)"
                 : "Whole recipe (estimated)"}
@@ -643,6 +679,7 @@ export default function Home() {
           </div>
         </>
       )}
-    </main>
+      </main>
+    </>
   );
 }

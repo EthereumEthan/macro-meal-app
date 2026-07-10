@@ -6,11 +6,15 @@ import { AISLE_ORDER, Aisle, categorize } from "@/lib/categories";
 
 /* ---------------- Macro ring (donut) ---------------- */
 
+// Categorical palette validated for the dark surface (CVD-safe, ≥3:1)
 const RING_COLORS = {
-  protein: "#4ade80",
-  carbs: "#38bdf8",
-  fat: "#fbbf24",
+  protein: "#3987e5",
+  carbs: "#199e70",
+  fat: "#c98500",
 };
+
+// 2px surface gap between touching segments, in circumference units
+const RING_GAP = 3;
 
 export function MacroRing({ macros }: { macros: Macros }) {
   const pCal = macros.protein * 4;
@@ -44,7 +48,8 @@ export function MacroRing({ macros }: { macros: Macros }) {
         />
         {segs.map((s) => {
           const dash = s.frac * c;
-          const offset = -cumulative * c;
+          const visible = Math.max(dash - RING_GAP, 0);
+          const offset = -(cumulative * c + RING_GAP / 2);
           cumulative += s.frac;
           return (
             <circle
@@ -54,8 +59,8 @@ export function MacroRing({ macros }: { macros: Macros }) {
               r={r}
               fill="none"
               stroke={s.color}
-              strokeWidth="16"
-              strokeDasharray={`${dash} ${c}`}
+              strokeWidth="15"
+              strokeDasharray={`${visible} ${c}`}
               strokeDashoffset={offset}
               transform="rotate(-90 70 70)"
             />
@@ -179,6 +184,16 @@ export function FitBars({
 
 /* ---------------- Grocery list by aisle ---------------- */
 
+const AISLE_ICONS: Record<Aisle, string> = {
+  Produce: "🥬",
+  "Meat & Seafood": "🥩",
+  "Dairy & Eggs": "🥛",
+  "Bakery & Grains": "🍞",
+  Frozen: "🧊",
+  "Pantry & Canned": "🥫",
+  Other: "🛒",
+};
+
 export function GroceryList({
   ingredients,
 }: {
@@ -206,7 +221,10 @@ export function GroceryList({
     <div className="grocery">
       {AISLE_ORDER.filter((a) => groups.has(a)).map((aisle) => (
         <div className="grocery-section" key={aisle}>
-          <div className="grocery-aisle">{aisle}</div>
+          <div className="grocery-aisle">
+            <span>{AISLE_ICONS[aisle]}</span>
+            {aisle}
+          </div>
           {groups.get(aisle)!.map((ing) => (
             <label
               className={checked.has(ing.idx) ? "grocery-item done" : "grocery-item"}
