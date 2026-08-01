@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { scaleMacros } from "@/lib/nutrition";
+import { isValidTarget } from "@/lib/fit";
 import {
-  Macros,
-  addMacros,
-  emptyMacros,
-  lookupNutrition,
-  measureToGrams,
-  scaleMacros,
-} from "@/lib/nutrition";
+  analyzeIngredient,
+  buildAdaptation,
+  sumIngredients,
+} from "@/lib/adapt";
 
 export const maxDuration = 60;
 
@@ -91,61 +90,13 @@ function parseNutritionNumber(value: string | undefined): number | null {
   return m ? parseFloat(m[1]) : null;
 }
 
-/* ---------- Trivial-ingredient detection (salt, pepper, water...) ---------- */
-
-const LEADING_AMOUNT =
-  /^[\d\s/.,½¼¾⅓⅔⅛()-]*\s*(cups?|tablespoons?|tbsps?|teaspoons?|tsps?|pinch(es)? of|dash(es)? of|pinch(es)?|dash(es)?|grams?|g\b|kgs?|ozs?|ounces?|lbs?|pounds?|ml|liters?|litres?|cans? of|cans?)?\s*(of\s+)?/i;
-
-const TRIVIAL_PATTERNS: RegExp[] = [
-  /^(fine |sea |kosher |table |coarse |flaky |iodized |pink |himalayan )*salt\b/i,
-  /^(fresh(ly)? |ground |cracked |black |white |red |cayenne |crushed )*pepper(corns?)?( flakes)?\b/i,
-  /^(cold |warm |hot |boiling |ice(d)? )*water\b/i,
-  /^ice( cubes?)?\b/i,
-  /salt (and|&) (freshly ground |ground |black )*pepper/i,
-  /^baking (powder|soda)\b/i,
-  /^(a )?(pinch|dash) of/i,
-  /to taste/i,
-];
-
-function isTrivial(ingredientText: string): boolean {
-  const stripped = ingredientText
-    .toLowerCase()
-    .replace(LEADING_AMOUNT, "")
-    .trim();
-  return TRIVIAL_PATTERNS.some(
-    (re) => re.test(stripped) || re.test(ingredientText.toLowerCase()),
-  );
-}
-
-/* ---------- Ingredient text -> grams ---------- */
-
-function ingredientToGrams(text: string): number | null {
-  // "1 (14 oz) can ..." / "2 (400g) tins ..." — parenthetical package size
-  const pkg = text.match(
-    /\((\d+(?:\.\d+)?)\s*-?\s*(oz|ounces?|g|grams?|ml|lbs?|pounds?)\.?\)/i,
-  );
-  if (pkg) {
-    const amount = parseFloat(pkg[1]);
-    const unit = pkg[2].toLowerCase();
-    const grams = unit.startsWith("oz") || unit.startsWith("ounce")
-      ? amount * 28.35
-      : unit.startsWith("lb") || unit.startsWith("pound")
-        ? amount * 453.6
-        : amount; // g or ml
-    const countMatch = text.match(/^(\d+(?:\.\d+)?)\s*\(/);
-    const count = countMatch ? parseFloat(countMatch[1]) : 1;
-    return count * grams;
-  }
-  // Otherwise the whole string works as a measure ("2 cups heavy cream")
-  return measureToGrams(text, text);
-}
-
 /* ---------- Route ---------- */
 
 export async function POST(req: NextRequest) {
   let url: string;
+  let rawTarget: unknown;
   try {
-    ({ url } = await req.json());
+    ({ url, macros: rawTarget } = await req.json());
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
@@ -192,35 +143,10 @@ export async function POST(req: NextRequest) {
   const rawIngredients = recipe.recipeIngredient ?? recipe.ingredients ?? [];
   const servings = extractServings(recipe.recipeYield);
 
-  const totals = emptyMacros();
-  let matched = 0;
-  let analyzed = 0;
-
-  const ingredients = rawIngredients.map((raw) => {
-    const text = raw.replace(/\s+/g, " ").trim();
-    if (isTrivial(text)) {
-      return { text, skipped: true as const, macros: null, grams: null };
-    }
-    analyzed++;
-    const nutrition = lookupNutrition(text);
-    let grams = ingredientToGrams(text);
-    if (!nutrition || grams === null) {
-      return { text, skipped: false as const, macros: null, grams: null };
-    }
-    // Frying oil mostly stays in the pan — count ~20% as consumed
-    if (/oil/i.test(text) && /for (deep[- ])?frying/i.test(text)) {
-      grams *= 0.2;
-    }
-    matched++;
-    const macros: Macros = {
-      calories: (nutrition.per100g.calories * grams) / 100,
-      protein: (nutrition.per100g.protein * grams) / 100,
-      carbs: (nutrition.per100g.carbs * grams) / 100,
-      fat: (nutrition.per100g.fat * grams) / 100,
-    };
-    addMacros(totals, nutrition.per100g, grams);
-    return { text, skipped: false as const, macros, grams: Math.round(grams) };
-  });
+  const ingredients = rawIngredients.map(analyzeIngredient);
+  const totals = sumIngredients(ingredients);
+  const analyzed = ingredients.filter((i) => !i.skipped).length;
+  const matched = ingredients.filter((i) => i.macros !== null).length;
 
   // Site-reported nutrition (per serving), when the page includes it
   const siteNutrition = recipe.nutrition
@@ -235,6 +161,14 @@ export async function POST(req: NextRequest) {
     siteNutrition &&
     Object.values(siteNutrition).some((v) => v !== null);
 
+  // Adapt the recipe when the caller sent macro targets. Without them there's
+  // nothing to aim at, so the response stays a plain nutrition breakdown.
+  const target = isValidTarget(rawTarget) ? rawTarget : null;
+  const adapted =
+    target && matched > 0
+      ? buildAdaptation(ingredients, target, servings)
+      : null;
+
   return NextResponse.json({
     analysis: {
       title: recipe.name ?? "Recipe",
@@ -245,6 +179,7 @@ export async function POST(req: NextRequest) {
       totals,
       perServing: servings ? scaleMacros(totals, 1 / servings) : null,
       siteNutrition: hasSiteNutrition ? siteNutrition : null,
+      adapted,
       notes: `Estimated nutrition for ${matched} of ${analyzed} main ingredients (seasonings like salt, pepper, and water are skipped). Values are approximations from a standard nutrition table.`,
     },
   });

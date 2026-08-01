@@ -57,17 +57,19 @@ interface Plan {
   notes: string;
 }
 
+interface AnalyzedIngredient {
+  text: string;
+  skipped: boolean;
+  grams: number | null;
+  macros: Macros | null;
+}
+
 interface Analysis {
   title: string;
   imageUrl: string | null;
   sourceUrl: string;
   servings: number | null;
-  ingredients: {
-    text: string;
-    skipped: boolean;
-    grams: number | null;
-    macros: Macros | null;
-  }[];
+  ingredients: AnalyzedIngredient[];
   totals: Macros;
   perServing: Macros | null;
   siteNutrition: {
@@ -76,7 +78,52 @@ interface Analysis {
     carbs: number | null;
     fat: number | null;
   } | null;
+  /** Present only when macro targets were sent with the request */
+  adapted: {
+    swaps: { original: string; replacement: string; reason: string }[];
+    ingredients: AnalyzedIngredient[];
+    totals: Macros;
+    perServing: Macros | null;
+    fitMultiplier: number;
+    fittedMacros: Macros;
+    basis: "serving" | "recipe";
+  } | null;
   notes: string;
+}
+
+type TargetKey = "calories" | "protein" | "carbs" | "fat";
+
+const TARGET_FIELDS: { key: TargetKey; label: string }[] = [
+  { key: "calories", label: "Calories" },
+  { key: "protein", label: "Protein (g)" },
+  { key: "carbs", label: "Carbs (g)" },
+  { key: "fat", label: "Fat (g)" },
+];
+
+function MacroTargetFields({
+  values,
+  onChange,
+}: {
+  values: Record<TargetKey, string>;
+  onChange: (key: TargetKey, value: string) => void;
+}) {
+  return (
+    <>
+      {TARGET_FIELDS.map((f) => (
+        <div key={f.key}>
+          <label htmlFor={f.key}>{f.label}</label>
+          <input
+            id={f.key}
+            type="number"
+            min="0"
+            value={values[f.key]}
+            onChange={(e) => onChange(f.key, e.target.value)}
+            required
+          />
+        </div>
+      ))}
+    </>
+  );
 }
 
 type GeoStatus = "detecting" | "ok" | "unavailable";
@@ -119,7 +166,13 @@ function MacroPills({ macros, dim }: { macros: Macros; dim?: boolean }) {
   );
 }
 
-function describePortion(k: number): string {
+function describePortion(
+  k: number,
+  basis: "serving" | "recipe" = "serving",
+): string {
+  // A recipe with no published yield has no "serving" to speak of, so the
+  // portion is expressed as a share of the whole thing instead.
+  if (basis === "recipe") return `about ${Math.round(k * 100)}% of the recipe`;
   if (k >= 0.9 && k <= 1.1) return "about 1 serving";
   const rounded = Math.round(k * 10) / 10;
   if (rounded < 0.1) return "less than a tenth of a serving";
@@ -169,7 +222,7 @@ function ResultSkeleton({ mode }: { mode: Mode }) {
           <p>
             {mode === "find"
               ? "Finding a recipe, swapping ingredients to fit your macros, and checking stores near you. This can take a minute or two."
-              : "Fetching the page and estimating nutrition for each ingredient…"}
+              : "Reading the page, estimating each ingredient, and testing swaps against your targets…"}
           </p>
         </span>
       </div>
@@ -209,10 +262,20 @@ export default function Home() {
     );
   }, []);
 
-  const [calories, setCalories] = useState("600");
-  const [protein, setProtein] = useState("45");
-  const [carbs, setCarbs] = useState("50");
-  const [fat, setFat] = useState("20");
+  const [targets, setTargets] = useState<Record<TargetKey, string>>({
+    calories: "600",
+    protein: "45",
+    carbs: "50",
+    fat: "20",
+  });
+  const setTarget = (key: TargetKey, value: string) =>
+    setTargets((t) => ({ ...t, [key]: value }));
+  const targetMacros = (): Macros => ({
+    calories: Number(targets.calories),
+    protein: Number(targets.protein),
+    carbs: Number(targets.carbs),
+    fat: Number(targets.fat),
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [plan, setPlan] = useState<Plan | null>(null);
@@ -230,11 +293,14 @@ export default function Home() {
     setError(null);
     setAnalysis(null);
 
+    const target = targetMacros();
+    setSubmittedTarget(target);
+
     try {
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: recipeUrl }),
+        body: JSON.stringify({ url: recipeUrl, macros: target }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -283,12 +349,7 @@ export default function Home() {
     setPlan(null);
     setRaw(null);
 
-    const target: Macros = {
-      calories: Number(calories),
-      protein: Number(protein),
-      carbs: Number(carbs),
-      fat: Number(fat),
-    };
+    const target = targetMacros();
     setSubmittedTarget(target);
 
     try {
@@ -372,7 +433,14 @@ export default function Home() {
           <aside className="side">
             {mode === "link" ? (
               <form className="card" onSubmit={submitLink}>
-                <SectionHead icon={<LinkIcon />} title="Paste a recipe link" />
+                <SectionHead
+                  icon={<LinkIcon />}
+                  title="Adapt a recipe you found"
+                />
+                <p className="card-sub">
+                  Paste any recipe URL and we&apos;ll swap ingredients to move
+                  it toward your targets.
+                </p>
                 <div className="field-grid">
                   <div className="full-row">
                     <label htmlFor="recipeUrl">Recipe URL</label>
@@ -385,13 +453,14 @@ export default function Home() {
                       required
                     />
                   </div>
+                  <MacroTargetFields values={targets} onChange={setTarget} />
                 </div>
                 <button
                   type="submit"
                   className="btn btn-primary btn-block"
                   disabled={loading}
                 >
-                  {loading ? "Reading the recipe…" : "Get nutrition facts"}
+                  {loading ? "Adapting the recipe…" : "Adapt to my macros"}
                 </button>
               </form>
             ) : (
@@ -437,50 +506,7 @@ export default function Home() {
                       </>
                     )}
                   </div>
-                  <div>
-                    <label htmlFor="calories">Calories</label>
-                    <input
-                      id="calories"
-                      type="number"
-                      min="0"
-                      value={calories}
-                      onChange={(e) => setCalories(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="protein">Protein (g)</label>
-                    <input
-                      id="protein"
-                      type="number"
-                      min="0"
-                      value={protein}
-                      onChange={(e) => setProtein(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="carbs">Carbs (g)</label>
-                    <input
-                      id="carbs"
-                      type="number"
-                      min="0"
-                      value={carbs}
-                      onChange={(e) => setCarbs(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="fat">Fat (g)</label>
-                    <input
-                      id="fat"
-                      type="number"
-                      min="0"
-                      value={fat}
-                      onChange={(e) => setFat(e.target.value)}
-                      required
-                    />
-                  </div>
+                  <MacroTargetFields values={targets} onChange={setTarget} />
                 </div>
                 <button
                   type="submit"
@@ -513,12 +539,12 @@ export default function Home() {
                 <h3>
                   {mode === "find"
                     ? "Your meal plan shows up here"
-                    : "Your nutrition breakdown shows up here"}
+                    : "Your adapted recipe shows up here"}
                 </h3>
                 <p>
                   {mode === "find"
                     ? "Tell us the dish and your targets, and we'll size the portion, swap ingredients, and price the trip."
-                    : "Paste any recipe URL and we'll estimate the macros ingredient by ingredient."}
+                    : "Paste a recipe you already want to cook. We'll swap what helps, leave what doesn't, and size the portion."}
                 </p>
               </div>
             )}
@@ -767,21 +793,66 @@ export default function Home() {
                   <SectionHead
                     icon={<TargetIcon />}
                     title={
-                      analysis.perServing
-                        ? "Nutrition per serving (estimated)"
-                        : "Whole recipe (estimated)"
+                      analysis.adapted
+                        ? "Adapted to your macros"
+                        : analysis.perServing
+                          ? "Nutrition per serving (estimated)"
+                          : "Whole recipe (estimated)"
                     }
                   />
-                  <MacroRing macros={analysis.perServing ?? analysis.totals} />
-                  {analysis.perServing && (
-                    <div className="orig-compare">
-                      <label>Whole recipe ({analysis.servings} servings)</label>
-                      <MacroPills macros={analysis.totals} dim />
+                  {analysis.adapted && (
+                    <div className="portion-rec">
+                      <span>
+                        Eat{" "}
+                        <strong>
+                          {describePortion(
+                            analysis.adapted.fitMultiplier,
+                            analysis.adapted.basis,
+                          )}
+                        </strong>{" "}
+                        to best match your targets
+                      </span>
                     </div>
                   )}
+                  <MacroRing
+                    macros={
+                      analysis.adapted
+                        ? analysis.adapted.fittedMacros
+                        : (analysis.perServing ?? analysis.totals)
+                    }
+                  />
+                  {analysis.adapted && submittedTarget && (
+                    <FitBars
+                      target={submittedTarget}
+                      actual={analysis.adapted.fittedMacros}
+                    />
+                  )}
+                  <div className="orig-compare">
+                    <label>
+                      {analysis.adapted
+                        ? `Original recipe, ${analysis.perServing ? "per serving" : "whole recipe"}`
+                        : `Whole recipe (${analysis.servings} servings)`}
+                    </label>
+                    <MacroPills
+                      macros={
+                        analysis.adapted
+                          ? (analysis.perServing ?? analysis.totals)
+                          : analysis.totals
+                      }
+                      dim
+                    />
+                  </div>
                   <AddToDayButton
-                    name={analysis.title}
-                    macros={analysis.perServing ?? analysis.totals}
+                    name={
+                      analysis.adapted
+                        ? `${analysis.title} (adapted, ${describePortion(analysis.adapted.fitMultiplier, analysis.adapted.basis)})`
+                        : analysis.title
+                    }
+                    macros={
+                      analysis.adapted
+                        ? analysis.adapted.fittedMacros
+                        : (analysis.perServing ?? analysis.totals)
+                    }
                     onAdd={dailyLog.addMeal}
                   />
                   {analysis.siteNutrition && (
@@ -795,41 +866,97 @@ export default function Home() {
                         `, ${Math.round(analysis.siteNutrition.carbs)}g carbs`}
                       {analysis.siteNutrition.fat !== null &&
                         `, ${Math.round(analysis.siteNutrition.fat)}g fat`}{" "}
-                      — a good cross-check against the estimates above.
+                      — a good cross-check against the original estimates.
                     </p>
                   )}
                 </div>
 
+                {analysis.adapted && (
+                  <div className="card">
+                    <SectionHead
+                      icon={<SwapIcon />}
+                      title="Ingredient swaps"
+                      aside={
+                        analysis.adapted.swaps.length > 0 ? (
+                          <span className="cost-badge">
+                            {analysis.adapted.swaps.length} change
+                            {analysis.adapted.swaps.length === 1 ? "" : "s"}
+                          </span>
+                        ) : undefined
+                      }
+                    />
+                    {analysis.adapted.swaps.length > 0 ? (
+                      analysis.adapted.swaps.map((s, i) => (
+                        <div className="swap" key={i}>
+                          <div className="swap-line">
+                            <span className="swap-from">{s.original}</span>
+                            <SwapIcon className="swap-arrow" />
+                            <span className="swap-to">{s.replacement}</span>
+                          </div>
+                          <div className="swap-why">{s.reason}</div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="card-sub" style={{ margin: 0 }}>
+                        No swaps applied — none of the available substitutions
+                        would move this recipe closer to your targets. Adjust
+                        the portion instead.
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 <div className="card">
                   <SectionHead
                     icon={<ReceiptIcon />}
-                    title="Ingredients & nutrition facts"
+                    title={
+                      analysis.adapted
+                        ? "Ingredients (adapted)"
+                        : "Ingredients & nutrition facts"
+                    }
                   />
                   <div className="nutri-list">
-                    {analysis.ingredients.map((ing, i) => (
-                      <div
-                        className={
-                          ing.skipped ? "nutri-row skipped" : "nutri-row"
-                        }
-                        key={i}
-                      >
-                        <span className="nutri-name">{ing.text}</span>
-                        {ing.skipped ? (
-                          <span className="nutri-facts muted">
-                            seasoning — not counted
-                          </span>
-                        ) : ing.macros ? (
-                          <span className="nutri-facts">
-                            {Math.round(ing.macros.calories)} cals ·{" "}
-                            {Math.round(ing.macros.protein)}P ·{" "}
-                            {Math.round(ing.macros.carbs)}C ·{" "}
-                            {Math.round(ing.macros.fat)}F
-                          </span>
-                        ) : (
-                          <span className="nutri-facts muted">no data</span>
-                        )}
-                      </div>
-                    ))}
+                    {(analysis.adapted?.ingredients ?? analysis.ingredients).map(
+                      (ing, i) => {
+                        // Index-aligned with the original list, so a differing
+                        // line at the same position is exactly a swapped one.
+                        const original = analysis.ingredients[i];
+                        const wasSwapped =
+                          original !== undefined && original.text !== ing.text;
+                        return (
+                          <div
+                            className={
+                              ing.skipped ? "nutri-row skipped" : "nutri-row"
+                            }
+                            key={i}
+                          >
+                            <span className="nutri-name">
+                              {wasSwapped && (
+                                <span className="swap-from">
+                                  {original.text}
+                                </span>
+                              )}
+                              {wasSwapped && " → "}
+                              {ing.text}
+                            </span>
+                            {ing.skipped ? (
+                              <span className="nutri-facts muted">
+                                seasoning — not counted
+                              </span>
+                            ) : ing.macros ? (
+                              <span className="nutri-facts">
+                                {Math.round(ing.macros.calories)} cals ·{" "}
+                                {Math.round(ing.macros.protein)}P ·{" "}
+                                {Math.round(ing.macros.carbs)}C ·{" "}
+                                {Math.round(ing.macros.fat)}F
+                              </span>
+                            ) : (
+                              <span className="nutri-facts muted">no data</span>
+                            )}
+                          </div>
+                        );
+                      },
+                    )}
                   </div>
                 </div>
               </>

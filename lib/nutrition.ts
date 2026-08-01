@@ -376,7 +376,10 @@ export const SWAP_RULES: SwapRule[] = [
     reason: "Trades some richness for a leaner, higher-protein cut.",
   },
   {
-    pattern: /^bacon|streaky bacon/i,
+    // Not anchored: these rules also run against whole ingredient lines
+    // ("200 g bacon, diced"), where a ^ anchor would never match. The
+    // lookbehind stops "turkey bacon" from being swapped into itself.
+    pattern: /(?<!turkey )\bbacon\b/i,
     replacement: "Turkey bacon",
     reason: "About 60% less fat per slice.",
   },

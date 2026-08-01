@@ -9,6 +9,7 @@ import {
   scaleMacros,
 } from "@/lib/nutrition";
 import { PRICE_PER_100G, matchChain } from "@/lib/prices";
+import { bestFitPortion } from "@/lib/fit";
 
 export const maxDuration = 60;
 
@@ -112,28 +113,6 @@ function computeMacros(ingredients: RecipeIngredient[]): {
     }
   }
   return { perServing: scaleMacros(total, 1 / ASSUMED_SERVINGS), matched };
-}
-
-/**
- * Portion (in servings) that best matches all four target macros at once.
- * Minimizes summed squared relative error across calories/protein/carbs/fat,
- * weighting each macro equally regardless of magnitude. Clamped to a sane
- * eating range so a badly-matched recipe never suggests "0.02 servings".
- */
-function bestFitPortion(perServing: Macros, target: Macros): number {
-  const keys: (keyof Macros)[] = ["calories", "protein", "carbs", "fat"];
-  let num = 0;
-  let den = 0;
-  for (const k of keys) {
-    if (target[k] > 0 && perServing[k] > 0) {
-      const r = perServing[k] / target[k];
-      num += r;
-      den += r * r;
-    }
-  }
-  if (den === 0) return 1;
-  const k = num / den;
-  return Math.min(Math.max(k, 0.25), 8);
 }
 
 interface Store {
