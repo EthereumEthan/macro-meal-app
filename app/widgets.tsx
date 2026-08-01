@@ -3,36 +3,43 @@
 import { useEffect, useState } from "react";
 import { Macros } from "@/lib/nutrition";
 import { AISLE_ORDER, Aisle, categorize } from "@/lib/categories";
+import {
+  AlertIcon,
+  CheckCircleIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  CloseIcon,
+  MoonIcon,
+  PlusIcon,
+  SunIcon,
+} from "@/app/icons";
 
 /* ---------------- Macro ring (donut) ---------------- */
 
-// Categorical palette validated for the dark surface (CVD-safe, ≥3:1)
-const RING_COLORS = {
-  protein: "#3987e5",
-  carbs: "#199e70",
-  fat: "#c98500",
-};
+// Hues live in CSS (--protein/--carbs/--fat) so light and dark each get a
+// step validated against their own surface. Identity is never color-alone:
+// the legend direct-labels every segment with name, grams and share.
+const RING_SLOTS = [
+  { key: "protein" as const, label: "Protein", color: "var(--protein)" },
+  { key: "carbs" as const, label: "Carbs", color: "var(--carbs)" },
+  { key: "fat" as const, label: "Fat", color: "var(--fat)" },
+];
+
+const CAL_PER_G = { protein: 4, carbs: 4, fat: 9 };
 
 // 2px surface gap between touching segments, in circumference units
-const RING_GAP = 3;
+const RING_GAP = 3.4;
 
 export function MacroRing({ macros }: { macros: Macros }) {
-  const pCal = macros.protein * 4;
-  const cCal = macros.carbs * 4;
-  const fCal = macros.fat * 9;
-  const total = pCal + cCal + fCal;
+  const cals = {
+    protein: macros.protein * CAL_PER_G.protein,
+    carbs: macros.carbs * CAL_PER_G.carbs,
+    fat: macros.fat * CAL_PER_G.fat,
+  };
+  const total = cals.protein + cals.carbs + cals.fat;
 
   const r = 54;
   const c = 2 * Math.PI * r;
-  const segs =
-    total > 0
-      ? [
-          { key: "protein", frac: pCal / total, color: RING_COLORS.protein },
-          { key: "carbs", frac: cCal / total, color: RING_COLORS.carbs },
-          { key: "fat", frac: fCal / total, color: RING_COLORS.fat },
-        ]
-      : [];
-
   let cumulative = 0;
 
   return (
@@ -44,74 +51,49 @@ export function MacroRing({ macros }: { macros: Macros }) {
           r={r}
           className="ring-track"
           fill="none"
-          strokeWidth="16"
+          strokeWidth="14"
         />
-        {segs.map((s) => {
-          const dash = s.frac * c;
-          const visible = Math.max(dash - RING_GAP, 0);
-          const offset = -(cumulative * c + RING_GAP / 2);
-          cumulative += s.frac;
-          return (
-            <circle
-              key={s.key}
-              cx="70"
-              cy="70"
-              r={r}
-              fill="none"
-              stroke={s.color}
-              strokeWidth="15"
-              strokeDasharray={`${visible} ${c}`}
-              strokeDashoffset={offset}
-              transform="rotate(-90 70 70)"
-            />
-          );
-        })}
+        {total > 0 &&
+          RING_SLOTS.map((slot) => {
+            const frac = cals[slot.key] / total;
+            const dash = Math.max(frac * c - RING_GAP, 0);
+            const offset = -(cumulative * c + RING_GAP / 2);
+            cumulative += frac;
+            return (
+              <circle
+                key={slot.key}
+                className="ring-seg"
+                cx="70"
+                cy="70"
+                r={r}
+                fill="none"
+                stroke={slot.color}
+                strokeWidth="14"
+                strokeDasharray={`${dash} ${c}`}
+                strokeDashoffset={offset}
+                transform="rotate(-90 70 70)"
+              />
+            );
+          })}
       </svg>
       <div className="ring-center">
         <div className="ring-cals">{Math.round(macros.calories)}</div>
         <div className="ring-cals-label">cals</div>
       </div>
       <div className="ring-legend">
-        <LegendItem
-          color={RING_COLORS.protein}
-          label="Protein"
-          grams={macros.protein}
-          pct={total > 0 ? (pCal / total) * 100 : 0}
-        />
-        <LegendItem
-          color={RING_COLORS.carbs}
-          label="Carbs"
-          grams={macros.carbs}
-          pct={total > 0 ? (cCal / total) * 100 : 0}
-        />
-        <LegendItem
-          color={RING_COLORS.fat}
-          label="Fat"
-          grams={macros.fat}
-          pct={total > 0 ? (fCal / total) * 100 : 0}
-        />
+        {RING_SLOTS.map((slot) => (
+          <div className="legend-item" key={slot.key}>
+            <span className="legend-dot" style={{ background: slot.color }} />
+            <span className="legend-label">{slot.label}</span>
+            <span className="legend-grams">
+              {Math.round(macros[slot.key])}g
+            </span>
+            <span className="legend-pct">
+              {total > 0 ? Math.round((cals[slot.key] / total) * 100) : 0}%
+            </span>
+          </div>
+        ))}
       </div>
-    </div>
-  );
-}
-
-function LegendItem({
-  color,
-  label,
-  grams,
-  pct,
-}: {
-  color: string;
-  label: string;
-  grams: number;
-  pct: number;
-}) {
-  return (
-    <div className="legend-item">
-      <span className="legend-dot" style={{ background: color }} />
-      <span className="legend-label">{label}</span>
-      <span className="legend-grams">{Math.round(grams)}g</span>
-      <span className="legend-pct">{Math.round(pct)}%</span>
     </div>
   );
 }
@@ -153,14 +135,18 @@ export function FitBars({
   const badge: Fit = allOn ? "on" : anyOff ? "off" : "close";
   const badgeText =
     badge === "on"
-      ? "Great fit for your macros ✓"
+      ? "Great fit for your macros"
       : badge === "close"
         ? "Close to your macros"
         : "Off your macro targets";
 
   return (
     <div className="fit-block">
-      <div className={`fit-badge ${badge}`}>{badgeText}</div>
+      {/* icon + label, so the state never rides on color alone */}
+      <div className={`fit-badge ${badge}`}>
+        {badge === "on" ? <CheckCircleIcon /> : <AlertIcon />}
+        {badgeText}
+      </div>
       {rows.map((r) => (
         <div className="fit-row" key={r.key}>
           <span className="fit-label">{r.label}</span>
@@ -184,16 +170,6 @@ export function FitBars({
 
 /* ---------------- Grocery list by aisle ---------------- */
 
-const AISLE_ICONS: Record<Aisle, string> = {
-  Produce: "🥬",
-  "Meat & Seafood": "🥩",
-  "Dairy & Eggs": "🥛",
-  "Bakery & Grains": "🍞",
-  Frozen: "🧊",
-  "Pantry & Canned": "🥫",
-  Other: "🛒",
-};
-
 export function GroceryList({
   ingredients,
 }: {
@@ -201,7 +177,10 @@ export function GroceryList({
 }) {
   const [checked, setChecked] = useState<Set<number>>(new Set());
 
-  const groups = new Map<Aisle, { text: string; price: number | null; idx: number }[]>();
+  const groups = new Map<
+    Aisle,
+    { text: string; price: number | null; idx: number }[]
+  >();
   ingredients.forEach((ing, idx) => {
     const aisle = categorize(ing.text);
     if (!groups.has(aisle)) groups.set(aisle, []);
@@ -219,30 +198,40 @@ export function GroceryList({
 
   return (
     <div className="grocery">
-      {AISLE_ORDER.filter((a) => groups.has(a)).map((aisle) => (
-        <div className="grocery-section" key={aisle}>
-          <div className="grocery-aisle">
-            <span>{AISLE_ICONS[aisle]}</span>
-            {aisle}
+      {AISLE_ORDER.filter((a) => groups.has(a)).map((aisle) => {
+        const items = groups.get(aisle)!;
+        const done = items.filter((i) => checked.has(i.idx)).length;
+        return (
+          <div className="grocery-section" key={aisle}>
+            <div className="grocery-aisle">
+              {aisle}
+              <span className="grocery-count">
+                {done}/{items.length}
+              </span>
+            </div>
+            {items.map((ing) => (
+              <label
+                className={
+                  checked.has(ing.idx) ? "grocery-item done" : "grocery-item"
+                }
+                key={ing.idx}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked.has(ing.idx)}
+                  onChange={() => toggle(ing.idx)}
+                />
+                <span className="grocery-text">{ing.text}</span>
+                {ing.price !== null && (
+                  <span className="grocery-price">
+                    ~${ing.price.toFixed(2)}
+                  </span>
+                )}
+              </label>
+            ))}
           </div>
-          {groups.get(aisle)!.map((ing) => (
-            <label
-              className={checked.has(ing.idx) ? "grocery-item done" : "grocery-item"}
-              key={ing.idx}
-            >
-              <input
-                type="checkbox"
-                checked={checked.has(ing.idx)}
-                onChange={() => toggle(ing.idx)}
-              />
-              <span className="grocery-text">{ing.text}</span>
-              {ing.price !== null && (
-                <span className="grocery-price">~${ing.price.toFixed(2)}</span>
-              )}
-            </label>
-          ))}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -347,19 +336,20 @@ export function AddToDayButton({
   return (
     <button
       type="button"
-      className="add-day-btn"
+      className="btn btn-outline add-day-btn"
       onClick={() => {
         onAdd(name, macros);
         setAdded(true);
         setTimeout(() => setAdded(false), 1800);
       }}
     >
-      {added ? "Added to today ✓" : "+ Add to today's total"}
+      {added ? <CheckIcon /> : <PlusIcon />}
+      {added ? "Added to today" : "Add to today's total"}
     </button>
   );
 }
 
-/* ---------------- Daily bar (top of page) ---------------- */
+/* ---------------- Daily bar ---------------- */
 
 function sumMeals(meals: LoggedMeal[]): Macros {
   return meals.reduce(
@@ -373,6 +363,34 @@ function sumMeals(meals: LoggedMeal[]): Macros {
   );
 }
 
+function DayRing({ pct, over }: { pct: number; over: boolean }) {
+  const r = 15.5;
+  const c = 2 * Math.PI * r;
+  return (
+    <svg viewBox="0 0 36 36" className="daily-ring" aria-hidden="true">
+      <circle
+        cx="18"
+        cy="18"
+        r={r}
+        fill="none"
+        stroke="var(--surface-3)"
+        strokeWidth="3.5"
+      />
+      <circle
+        cx="18"
+        cy="18"
+        r={r}
+        fill="none"
+        stroke={over ? "var(--bad)" : "var(--accent)"}
+        strokeWidth="3.5"
+        strokeLinecap="round"
+        strokeDasharray={`${(pct / 100) * c} ${c}`}
+        transform="rotate(-90 18 18)"
+      />
+    </svg>
+  );
+}
+
 export function DailyBar({ log }: { log: DailyLog }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -381,21 +399,33 @@ export function DailyBar({ log }: { log: DailyLog }) {
 
   const consumed = sumMeals(log.meals);
   const mealCount = log.meals.length;
+  const calPct =
+    log.goals.calories > 0
+      ? Math.min((consumed.calories / log.goals.calories) * 100, 100)
+      : 0;
 
   return (
     <div className="daily card">
-      <div className="daily-head" onClick={() => setOpen((o) => !o)}>
-        <div>
-          <strong>Today</strong>
+      <button
+        type="button"
+        className="daily-head"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+      >
+        <DayRing pct={calPct} over={consumed.calories > log.goals.calories} />
+        <span>
+          <span className="daily-title">Today</span>
           <span className="daily-summary">
             {Math.round(consumed.calories)} / {Math.round(log.goals.calories)}{" "}
             cals
             {mealCount > 0 &&
               ` · ${mealCount} meal${mealCount === 1 ? "" : "s"}`}
           </span>
-        </div>
-        <span className="daily-toggle">{open ? "▲ hide" : "▼ show"}</span>
-      </div>
+        </span>
+        <span className={open ? "daily-toggle open" : "daily-toggle"}>
+          <ChevronDownIcon />
+        </span>
+      </button>
 
       {open && (
         <div className="daily-body">
@@ -408,7 +438,7 @@ export function DailyBar({ log }: { log: DailyLog }) {
             return (
               <div className="daily-metric" key={m.key}>
                 <div className="daily-metric-top">
-                  <span>{m.label}</span>
+                  <span className="daily-metric-name">{m.label}</span>
                   <span className={over ? "daily-over" : "daily-left"}>
                     {over
                       ? `${Math.round(-remaining)}${m.unit} over`
@@ -430,7 +460,7 @@ export function DailyBar({ log }: { log: DailyLog }) {
             );
           })}
 
-          {log.meals.length > 0 && (
+          {log.meals.length > 0 ? (
             <div className="daily-meals">
               {log.meals.map((meal) => (
                 <div className="daily-meal" key={meal.id}>
@@ -442,19 +472,23 @@ export function DailyBar({ log }: { log: DailyLog }) {
                     type="button"
                     className="daily-remove"
                     onClick={() => log.removeMeal(meal.id)}
-                    aria-label="Remove meal"
+                    aria-label={`Remove ${meal.name}`}
                   >
-                    ✕
+                    <CloseIcon />
                   </button>
                 </div>
               ))}
             </div>
+          ) : (
+            <p className="daily-empty">
+              Nothing logged yet — add a meal from any result below.
+            </p>
           )}
 
           <div className="daily-actions">
             <button
               type="button"
-              className="daily-link"
+              className="btn-quiet"
               onClick={() => setEditing((e) => !e)}
             >
               {editing ? "Done editing goals" : "Edit daily goals"}
@@ -462,7 +496,7 @@ export function DailyBar({ log }: { log: DailyLog }) {
             {log.meals.length > 0 && (
               <button
                 type="button"
-                className="daily-link danger"
+                className="btn-quiet danger"
                 onClick={log.clearDay}
               >
                 Clear today
@@ -474,10 +508,11 @@ export function DailyBar({ log }: { log: DailyLog }) {
             <div className="daily-goals">
               {METRICS.map((m) => (
                 <div key={m.key}>
-                  <label>
+                  <label htmlFor={`goal-${m.key}`}>
                     {m.label} {m.unit && `(${m.unit})`}
                   </label>
                   <input
+                    id={`goal-${m.key}`}
                     type="number"
                     min="0"
                     value={log.goals[m.key]}
@@ -495,5 +530,46 @@ export function DailyBar({ log }: { log: DailyLog }) {
         </div>
       )}
     </div>
+  );
+}
+
+/* ---------------- Theme toggle ---------------- */
+
+const THEME_KEY = "macrochef-theme";
+
+export function ThemeToggle() {
+  // Rendered empty until mounted: the real theme lives on <html> (set by the
+  // inline script in layout.tsx) and isn't knowable during SSR.
+  const [dark, setDark] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const stamped = document.documentElement.dataset.theme;
+    setDark(
+      stamped
+        ? stamped === "dark"
+        : window.matchMedia("(prefers-color-scheme: dark)").matches,
+    );
+  }, []);
+
+  function toggle() {
+    const next = !dark;
+    setDark(next);
+    document.documentElement.dataset.theme = next ? "dark" : "light";
+    try {
+      localStorage.setItem(THEME_KEY, next ? "dark" : "light");
+    } catch {
+      // storage blocked — theme still applies for this page view
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      className="theme-toggle"
+      onClick={toggle}
+      aria-label={dark ? "Switch to light theme" : "Switch to dark theme"}
+    >
+      {dark === null ? null : dark ? <SunIcon /> : <MoonIcon />}
+    </button>
   );
 }
