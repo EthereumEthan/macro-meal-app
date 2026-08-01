@@ -1,8 +1,9 @@
 /* ==========================================================================
    MacroChef — design system
-   Tokens first, then layout, then components. Light + dark are both
-   selected (not an automatic flip); the theme toggle stamps data-theme
-   on <html> and must beat the OS preference in both directions.
+   Tokens first, then layout, then components. Dark is the default and does
+   not follow the OS preference; light is opt-in through the header toggle,
+   which stamps data-theme="light" on <html>. Both modes are separately
+   selected — light is not an inversion of dark.
    ========================================================================== */
 
 *,
@@ -16,97 +17,12 @@
   padding: 0;
 }
 
-/* ---------- Tokens: light (default) ---------- */
+/* ---------- Tokens: dark (default) ---------- */
 
 :root {
-  color-scheme: light;
-
-  /* Planes & ink */
-  --bg: #f7f7f6;
-  --bg-tint: rgba(4, 120, 87, 0.05);
-  --surface: #ffffff;
-  --surface-2: #f4f4f3;
-  --surface-3: #ebebe9;
-  --border: rgba(11, 11, 11, 0.09);
-  --border-strong: rgba(11, 11, 11, 0.16);
-  --ink: #101014;
-  --ink-2: #52525b;
-  --muted: #6e6e77;
-
-  /* Brand — the light step clears 4.5:1 on white, so it can carry text */
-  --accent: #047857;
-  --accent-hover: #065f46;
-  --accent-ink: #ffffff;
-  --accent-soft: rgba(4, 120, 87, 0.1);
-  --accent-line: rgba(4, 120, 87, 0.3);
-
-  /* Data — categorical, validated on this surface (see legend for relief) */
-  --protein: #2a78d6;
-  --carbs: #1baf7a;
-  --fat: #eda100;
-
-  /* Status: fills are fixed across modes, text steps are per-mode */
-  --good: #0ca30c;
-  --warn: #fab219;
-  --bad: #d03b3b;
-  --good-text: #006300;
-  --warn-text: #8a5a00;
-  --bad-text: #b02121;
-
-  /* Shape & depth */
-  --r-lg: 16px;
-  --r-md: 12px;
-  --r-sm: 9px;
-  --shadow-sm: 0 1px 2px rgba(11, 11, 11, 0.05);
-  --shadow-md: 0 1px 2px rgba(11, 11, 11, 0.04),
-    0 10px 26px -14px rgba(11, 11, 11, 0.16);
-  --shadow-pop: 0 8px 24px -10px rgba(4, 120, 87, 0.4);
-  --ring: 0 0 0 3px rgba(4, 120, 87, 0.24);
-
-  --header-h: 60px;
-}
-
-/* ---------- Tokens: dark ---------- */
-
-@media (prefers-color-scheme: dark) {
-  :root:where(:not([data-theme="light"])) {
-    color-scheme: dark;
-
-    --bg: #0a0a0b;
-    --bg-tint: rgba(52, 211, 153, 0.06);
-    --surface: #121214;
-    --surface-2: #1a1a1e;
-    --surface-3: #232329;
-    --border: rgba(255, 255, 255, 0.08);
-    --border-strong: rgba(255, 255, 255, 0.16);
-    --ink: #fafafa;
-    --ink-2: #a8a8b3;
-    --muted: #7e7e88;
-
-    --accent: #34d399;
-    --accent-hover: #6ee7b7;
-    --accent-ink: #04231a;
-    --accent-soft: rgba(52, 211, 153, 0.12);
-    --accent-line: rgba(52, 211, 153, 0.32);
-
-    --protein: #3987e5;
-    --carbs: #199e70;
-    --fat: #c98500;
-
-    --good-text: #34d399;
-    --warn-text: #fab219;
-    --bad-text: #f08a8a;
-
-    --shadow-sm: none;
-    --shadow-md: none;
-    --shadow-pop: 0 8px 24px -10px rgba(52, 211, 153, 0.35);
-    --ring: 0 0 0 3px rgba(52, 211, 153, 0.25);
-  }
-}
-
-:root[data-theme="dark"] {
   color-scheme: dark;
 
+  /* Planes & ink */
   --bg: #0a0a0b;
   --bg-tint: rgba(52, 211, 153, 0.06);
   --surface: #121214;
@@ -118,24 +34,74 @@
   --ink-2: #a8a8b3;
   --muted: #7e7e88;
 
+  /* Brand */
   --accent: #34d399;
   --accent-hover: #6ee7b7;
   --accent-ink: #04231a;
   --accent-soft: rgba(52, 211, 153, 0.12);
   --accent-line: rgba(52, 211, 153, 0.32);
 
+  /* Data — categorical, stepped for this surface (see legend for relief) */
   --protein: #3987e5;
   --carbs: #199e70;
   --fat: #c98500;
 
+  /* Status: fills are fixed across modes, text steps are per-mode */
+  --good: #0ca30c;
+  --warn: #fab219;
+  --bad: #d03b3b;
   --good-text: #34d399;
   --warn-text: #fab219;
   --bad-text: #f08a8a;
 
+  /* Shape & depth — borders carry separation here, so no elevation */
+  --r-lg: 16px;
+  --r-md: 12px;
+  --r-sm: 9px;
   --shadow-sm: none;
   --shadow-md: none;
   --shadow-pop: 0 8px 24px -10px rgba(52, 211, 153, 0.35);
   --ring: 0 0 0 3px rgba(52, 211, 153, 0.25);
+
+  --header-h: 60px;
+}
+
+/* ---------- Tokens: light (opt-in via the header toggle) ---------- */
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #f7f7f6;
+  --bg-tint: rgba(4, 120, 87, 0.05);
+  --surface: #ffffff;
+  --surface-2: #f4f4f3;
+  --surface-3: #ebebe9;
+  --border: rgba(11, 11, 11, 0.09);
+  --border-strong: rgba(11, 11, 11, 0.16);
+  --ink: #101014;
+  --ink-2: #52525b;
+  --muted: #6e6e77;
+
+  /* This step clears 4.5:1 on white, so it can carry text */
+  --accent: #047857;
+  --accent-hover: #065f46;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(4, 120, 87, 0.1);
+  --accent-line: rgba(4, 120, 87, 0.3);
+
+  --protein: #2a78d6;
+  --carbs: #1baf7a;
+  --fat: #eda100;
+
+  --good-text: #006300;
+  --warn-text: #8a5a00;
+  --bad-text: #b02121;
+
+  --shadow-sm: 0 1px 2px rgba(11, 11, 11, 0.05);
+  --shadow-md: 0 1px 2px rgba(11, 11, 11, 0.04),
+    0 10px 26px -14px rgba(11, 11, 11, 0.16);
+  --shadow-pop: 0 8px 24px -10px rgba(4, 120, 87, 0.4);
+  --ring: 0 0 0 3px rgba(4, 120, 87, 0.24);
 }
 
 /* ---------- Base ---------- */
@@ -293,20 +259,15 @@ svg {
   color: var(--ink-2);
 }
 
+/* Lifts off the track by one step in dark, by elevation on white */
 .tab.active {
-  background: var(--surface);
-  color: var(--ink);
-  box-shadow: var(--shadow-sm);
-}
-
-:root[data-theme="dark"] .tab.active {
   background: var(--surface-3);
+  color: var(--ink);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:where(:not([data-theme="light"])) .tab.active {
-    background: var(--surface-3);
-  }
+:root[data-theme="light"] .tab.active {
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .theme-toggle {

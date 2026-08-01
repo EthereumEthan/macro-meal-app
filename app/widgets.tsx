@@ -539,16 +539,12 @@ const THEME_KEY = "macrochef-theme";
 
 export function ThemeToggle() {
   // Rendered empty until mounted: the real theme lives on <html> (set by the
-  // inline script in layout.tsx) and isn't knowable during SSR.
+  // inline script in layout.tsx) and isn't knowable during SSR. With no
+  // stamp the app is dark, which is the default the CSS ships.
   const [dark, setDark] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const stamped = document.documentElement.dataset.theme;
-    setDark(
-      stamped
-        ? stamped === "dark"
-        : window.matchMedia("(prefers-color-scheme: dark)").matches,
-    );
+    setDark(document.documentElement.dataset.theme !== "light");
   }, []);
 
   function toggle() {
