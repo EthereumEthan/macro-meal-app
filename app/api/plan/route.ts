@@ -12,7 +12,11 @@ import { PRICE_PER_100G, matchChain } from "@/lib/prices";
 
 export const maxDuration = 60;
 
-const USER_AGENT = "MacroChef/0.1 (local dev meal planner)";
+// Nominatim's usage policy requires a User-Agent that identifies the app and
+// gives a way to reach whoever runs it. Point this at the deployed URL once
+// there is one.
+const USER_AGENT =
+  "MacroChef/1.0 (https://github.com/whatisabadname/macro-meal-app)";
 const ASSUMED_SERVINGS = 4; // TheMealDB doesn't publish serving counts
 
 interface PlanRequest {
@@ -39,7 +43,12 @@ async function searchRecipe(query: string): Promise<MealDbMeal | null> {
   const search = async (q: string): Promise<MealDbMeal[]> => {
     const res = await fetch(
       `https://www.themealdb.com/api/json/v1/1/search.php?s=${encodeURIComponent(q)}`,
-      { headers: { "User-Agent": USER_AGENT } },
+      {
+        headers: { "User-Agent": USER_AGENT },
+        // The catalog is effectively static, and the word-fallback search
+        // fires one request per query word — worth caching hard.
+        next: { revalidate: 604800 },
+      },
     );
     if (!res.ok) return [];
     const data = await res.json();
@@ -140,7 +149,12 @@ async function geocode(
 ): Promise<{ lat: number; lon: number } | null> {
   const geoRes = await fetch(
     `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(location)}`,
-    { headers: { "User-Agent": USER_AGENT } },
+    {
+      headers: { "User-Agent": USER_AGENT },
+      // "Austin, TX" resolves to the same point every time, and Nominatim's
+      // policy asks clients to cache rather than re-ask.
+      next: { revalidate: 2592000 },
+    },
   );
   if (!geoRes.ok) {
     console.error("Nominatim error:", geoRes.status, await geoRes.text());
@@ -162,17 +176,26 @@ async function findStores(
     const point = coords ?? (location ? await geocode(location) : null);
     if (!point) return [];
 
+    // Round the centre to ~1km before building the query. The search radius is
+    // 15km, so this doesn't change which stores come back, but it collapses
+    // every user in a neighbourhood onto one cache key instead of one per GPS
+    // reading.
+    const lat = point.lat.toFixed(2);
+    const lon = point.lon.toFixed(2);
+
     // Big-box stores are sparser than corner supermarkets — search ~15km.
     // Target is often tagged department_store, Costco/Sam's as wholesale.
-    const query = `[out:json][timeout:20];nwr["shop"~"supermarket|department_store|wholesale"]["name"](around:15000,${point.lat},${point.lon});out center 60;`;
-    const overpassRes = await fetch("https://overpass-api.de/api/interpreter", {
-      method: "POST",
-      headers: {
-        "User-Agent": USER_AGENT,
-        "Content-Type": "application/x-www-form-urlencoded",
+    const query = `[out:json][timeout:20];nwr["shop"~"supermarket|department_store|wholesale"]["name"](around:15000,${lat},${lon});out center 60;`;
+    // GET rather than POST so Next's data cache can serve repeats: Overpass is
+    // volunteer-run infrastructure and asks clients not to re-query the same
+    // area. Store locations move on the order of months.
+    const overpassRes = await fetch(
+      `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`,
+      {
+        headers: { "User-Agent": USER_AGENT },
+        next: { revalidate: 86400 },
       },
-      body: `data=${encodeURIComponent(query)}`,
-    });
+    );
     if (!overpassRes.ok) {
       console.error(
         "Overpass error:",
