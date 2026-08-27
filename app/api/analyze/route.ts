@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { scaleMacros } from "@/lib/nutrition";
 import { isValidTarget } from "@/lib/fit";
 import {
-  analyzeIngredient,
-  buildAdaptation,
-  sumIngredients,
-} from "@/lib/adapt";
+  buildRecipeResult,
+  parseOverrides,
+  parseVetoed,
+} from "@/lib/recipe";
 
 export const maxDuration = 60;
 
@@ -20,6 +19,7 @@ interface RecipeNode {
   image?: unknown;
   recipeIngredient?: string[];
   ingredients?: string[];
+  recipeInstructions?: unknown;
   recipeYield?: unknown;
   nutrition?: Record<string, string>;
 }
@@ -83,6 +83,31 @@ function extractServings(yieldValue: unknown): number | null {
   return null;
 }
 
+/** schema.org allows plain strings, HowToStep objects, or sections of them. */
+function extractInstructions(value: unknown): string[] {
+  const out: string[] = [];
+  const walk = (node: unknown) => {
+    if (!node) return;
+    if (typeof node === "string") {
+      const text = node.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      if (text) out.push(text);
+      return;
+    }
+    if (Array.isArray(node)) {
+      node.forEach(walk);
+      return;
+    }
+    if (typeof node === "object") {
+      const obj = node as Record<string, unknown>;
+      if (obj.itemListElement) return walk(obj.itemListElement);
+      if (typeof obj.text === "string") return walk(obj.text);
+      if (typeof obj.name === "string") return walk(obj.name);
+    }
+  };
+  walk(value);
+  return out;
+}
+
 /** Parse "450 calories" / "12 g" style values from schema.org nutrition */
 function parseNutritionNumber(value: string | undefined): number | null {
   if (!value) return null;
@@ -93,14 +118,14 @@ function parseNutritionNumber(value: string | undefined): number | null {
 /* ---------- Route ---------- */
 
 export async function POST(req: NextRequest) {
-  let url: string;
-  let rawTarget: unknown;
+  let body: Record<string, unknown>;
   try {
-    ({ url, macros: rawTarget } = await req.json());
+    body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
+  const url = typeof body.url === "string" ? body.url : "";
   if (!url || !/^https?:\/\//i.test(url)) {
     return NextResponse.json(
       { error: "Please paste a full recipe URL starting with http(s)://" },
@@ -117,14 +142,19 @@ export async function POST(req: NextRequest) {
     });
     if (!res.ok) {
       return NextResponse.json(
-        { error: `The site returned an error (${res.status}). It may block automated access — try a different recipe site.` },
+        {
+          error: `The site returned an error (${res.status}). It may block automated access.`,
+          // The paste box is a complete way around a blocked or unmarked page,
+          // so every failure here points at it rather than dead-ending.
+          canPaste: true,
+        },
         { status: 502 },
       );
     }
     html = await res.text();
   } catch {
     return NextResponse.json(
-      { error: "Couldn't reach that URL. Check the link and try again." },
+      { error: "Couldn't reach that URL. Check the link and try again.", canPaste: true },
       { status: 502 },
     );
   }
@@ -134,19 +164,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "Couldn't find recipe data on that page. Most major recipe sites work (AllRecipes, BBC Good Food, Food Network, Serious Eats...) — blogs without standard recipe markup don't.",
+          "Couldn't find recipe data on that page. Most major recipe sites publish it (AllRecipes, BBC Good Food, Food Network, Serious Eats); blogs often don't.",
+        canPaste: true,
       },
       { status: 422 },
     );
   }
 
-  const rawIngredients = recipe.recipeIngredient ?? recipe.ingredients ?? [];
-  const servings = extractServings(recipe.recipeYield);
+  const lines = recipe.recipeIngredient ?? recipe.ingredients ?? [];
+  const target = isValidTarget(body.macros) ? body.macros : null;
 
-  const ingredients = rawIngredients.map(analyzeIngredient);
-  const totals = sumIngredients(ingredients);
-  const analyzed = ingredients.filter((i) => !i.skipped).length;
-  const matched = ingredients.filter((i) => i.macros !== null).length;
+  const result = await buildRecipeResult(
+    {
+      title: recipe.name ?? "Recipe",
+      imageUrl: extractImage(recipe.image),
+      sourceUrl: url,
+      servings: extractServings(recipe.recipeYield),
+      lines,
+      instructions: extractInstructions(recipe.recipeInstructions),
+    },
+    target,
+    {
+      overrides: parseOverrides(body.overrides),
+      vetoed: parseVetoed(body.vetoed),
+    },
+  );
 
   // Site-reported nutrition (per serving), when the page includes it
   const siteNutrition = recipe.nutrition
@@ -158,29 +200,13 @@ export async function POST(req: NextRequest) {
       }
     : null;
   const hasSiteNutrition =
-    siteNutrition &&
-    Object.values(siteNutrition).some((v) => v !== null);
-
-  // Adapt the recipe when the caller sent macro targets. Without them there's
-  // nothing to aim at, so the response stays a plain nutrition breakdown.
-  const target = isValidTarget(rawTarget) ? rawTarget : null;
-  const adapted =
-    target && matched > 0
-      ? buildAdaptation(ingredients, target, servings)
-      : null;
+    siteNutrition && Object.values(siteNutrition).some((v) => v !== null);
 
   return NextResponse.json({
-    analysis: {
-      title: recipe.name ?? "Recipe",
-      imageUrl: extractImage(recipe.image),
-      sourceUrl: url,
-      servings,
-      ingredients,
-      totals,
-      perServing: servings ? scaleMacros(totals, 1 / servings) : null,
+    recipe: {
+      ...result,
+      lines,
       siteNutrition: hasSiteNutrition ? siteNutrition : null,
-      adapted,
-      notes: `Estimated nutrition for ${matched} of ${analyzed} main ingredients (seasonings like salt, pepper, and water are skipped). Values are approximations from a standard nutrition table.`,
     },
   });
 }

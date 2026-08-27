@@ -1635,3 +1635,609 @@ pre.raw {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* ==========================================================================
+   Additions: textarea + select, source toggle, ingredient editor, swap math,
+   target calculator, kitchen, day planner, consolidated shopping list.
+   ========================================================================== */
+
+/* ---------- Form controls the base sheet didn't cover ---------- */
+
+textarea,
+select {
+  width: 100%;
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 9px 11px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 120px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+textarea::placeholder {
+  color: var(--muted);
+}
+
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent-line);
+  box-shadow: var(--ring);
+}
+
+select:disabled,
+input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.field-hint {
+  margin-top: 6px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* ---------- URL / paste toggle ---------- */
+
+.source-toggle {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  margin-bottom: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+}
+
+.src {
+  flex: 1;
+  padding: 7px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+  background: none;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.src:hover:not(.active) {
+  color: var(--ink);
+}
+
+.src.active {
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+
+/* ---------- Ingredient editor ---------- */
+
+.editor {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.editor-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--warn-text);
+}
+
+.editor-flag svg {
+  width: 15px;
+  height: 15px;
+}
+
+.editor-intro {
+  margin: 10px 0 4px;
+}
+
+.editor-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.editor-row {
+  padding: 11px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+}
+
+.editor-row.excluded {
+  opacity: 0.55;
+}
+
+.editor-text {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 9px;
+}
+
+.editor-tag {
+  padding: 1px 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 4px;
+}
+
+.editor-tag.muted {
+  color: var(--muted);
+  background: var(--surface-3);
+}
+
+.editor-fields {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.editor-field {
+  flex: 1 1 180px;
+  display: block;
+  margin: 0;
+}
+
+.editor-field.narrow {
+  flex: 0 0 96px;
+}
+
+.editor-field > span {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.editor-field select,
+.editor-field input {
+  padding: 7px 9px;
+  font-size: 13.5px;
+}
+
+.editor-skip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 7px;
+  font-size: 13px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.editor-skip input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.editor-macros {
+  margin-top: 9px;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* ---------- Swap reasoning ---------- */
+
+.swap-math {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 7px;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.swap-delta {
+  color: var(--ink-2);
+}
+
+.swap-score {
+  padding: 1px 7px;
+  font-weight: 600;
+  color: var(--good-text);
+  background: var(--accent-soft);
+  border-radius: 999px;
+}
+
+.swap-origin {
+  color: var(--muted);
+}
+
+.swap.vetoed {
+  opacity: 0.7;
+}
+
+.swap.vetoed .swap-to {
+  text-decoration: line-through;
+}
+
+.passed {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.passed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.passed-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.passed-swap {
+  color: var(--ink-2);
+}
+
+/* ---------- Target calculator ---------- */
+
+.calc {
+  padding: 0;
+  overflow: hidden;
+}
+
+.calc-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 15px 18px;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+}
+
+.calc-head:hover {
+  background: var(--surface-2);
+}
+
+.calc-title {
+  display: block;
+  font-size: 14.5px;
+  font-weight: 650;
+}
+
+.calc-sub {
+  display: block;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.calc-body {
+  padding: 0 18px 18px;
+}
+
+.calc-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.calc-grid .full-row {
+  grid-column: 1 / -1;
+}
+
+.calc-height {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.calc-height input {
+  min-width: 0;
+}
+
+.calc-height span {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.calc-result {
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+}
+
+.calc-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 4px 0;
+  font-size: 13px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.calc-line strong {
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.calc-line.total {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.calc-line.total strong {
+  color: var(--accent);
+}
+
+.calc-note {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+/* ---------- Kitchen ---------- */
+
+.kitchen {
+  padding: 0;
+  overflow: hidden;
+}
+
+.kitchen-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 15px 18px;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+}
+
+.kitchen-head:hover {
+  background: var(--surface-2);
+}
+
+.kitchen-title {
+  display: block;
+  font-size: 14.5px;
+  font-weight: 650;
+}
+
+.kitchen-sub {
+  display: block;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.kitchen-body {
+  padding: 0 18px 14px;
+}
+
+.kitchen-row {
+  padding: 11px 0;
+  border-top: 1px solid var(--border);
+}
+
+.kitchen-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.kitchen-compare {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 5px 0 6px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.kitchen-before {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.kitchen-after {
+  color: var(--good-text);
+}
+
+.kitchen-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.kitchen-remove {
+  padding: 4px;
+  color: var(--muted);
+  background: none;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.kitchen-remove:hover {
+  color: var(--bad-text);
+  background: var(--surface-2);
+}
+
+.kitchen-remove svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+/* ---------- Day planner ---------- */
+
+.day-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 7px;
+}
+
+.day-remove {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--muted);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+
+.day-remove:hover {
+  color: var(--bad-text);
+  border-color: var(--border-strong);
+}
+
+.day-meal-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.day-thumb {
+  flex: 0 0 auto;
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: var(--r-md);
+}
+
+.day-swaps {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 12px 0;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border-radius: var(--r-sm);
+  font-size: 13px;
+}
+
+/* ---------- Shopping list additions ---------- */
+
+.grocery-qty {
+  margin-left: 8px;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.grocery-for {
+  display: block;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.grocery-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.grocery-total {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+
+/* ---------- Result actions ---------- */
+
+.result-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.result-actions .btn {
+  flex: 1 1 200px;
+}
+
+.error span {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+@media (max-width: 560px) {
+  .calc-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .editor-field.narrow {
+    flex: 1 1 96px;
+  }
+}

@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test": "node --import ./tests/resolve-ts.mjs --test \"tests/**/*.test.ts\"",
+    "test:watch": "node --import ./tests/resolve-ts.mjs --test --watch \"tests/**/*.test.ts\""
   },
   "dependencies": {
     "next": "^15.3.0",

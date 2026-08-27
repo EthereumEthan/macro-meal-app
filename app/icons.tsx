@@ -238,3 +238,80 @@ export function TrashIcon({ className }: IconProps) {
     </Svg>
   );
 }
+
+export function PencilIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </Svg>
+  );
+}
+
+export function UndoIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M3 7v6h6" />
+      <path d="M3.5 13a9 9 0 1 0 2.1-6.4L3 9" />
+    </Svg>
+  );
+}
+
+export function BookmarkIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2Z" />
+    </Svg>
+  );
+}
+
+export function CalculatorIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <rect x="4" y="2" width="16" height="20" rx="2" />
+      <path d="M8 6h8" />
+      <path d="M8 11h.01M12 11h.01M16 11h.01" />
+      <path d="M8 15h.01M12 15h.01M16 15h.01" />
+      <path d="M8 19h8" />
+    </Svg>
+  );
+}
+
+export function CalendarIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M3 10h18M8 3v4M16 3v4" />
+    </Svg>
+  );
+}
+
+export function ScaleIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M12 3v18M7 21h10" />
+      <path d="M6 7h12l-2.5-2.5" />
+      <path d="M3 13a3 3 0 0 0 6 0L6 7Z" />
+      <path d="M15 13a3 3 0 0 0 6 0L18 7Z" />
+    </Svg>
+  );
+}
+
+export function InfoIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 16v-5M12 8h.01" />
+    </Svg>
+  );
+}
+
+export function ClipboardIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <rect x="8" y="3" width="8" height="4" rx="1" />
+      <path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2" />
+      <path d="M9 12h6M9 16h4" />
+    </Svg>
+  );
+}

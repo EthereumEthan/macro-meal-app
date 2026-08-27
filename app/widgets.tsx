@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { Macros } from "@/lib/nutrition";
-import { AISLE_ORDER, Aisle, categorize } from "@/lib/categories";
 import {
   AlertIcon,
   CheckCircleIcon,
@@ -164,74 +163,6 @@ export function FitBars({
           </span>
         </div>
       ))}
-    </div>
-  );
-}
-
-/* ---------------- Grocery list by aisle ---------------- */
-
-export function GroceryList({
-  ingredients,
-}: {
-  ingredients: { text: string; price: number | null }[];
-}) {
-  const [checked, setChecked] = useState<Set<number>>(new Set());
-
-  const groups = new Map<
-    Aisle,
-    { text: string; price: number | null; idx: number }[]
-  >();
-  ingredients.forEach((ing, idx) => {
-    const aisle = categorize(ing.text);
-    if (!groups.has(aisle)) groups.set(aisle, []);
-    groups.get(aisle)!.push({ ...ing, idx });
-  });
-
-  function toggle(idx: number) {
-    setChecked((prev) => {
-      const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx);
-      else next.add(idx);
-      return next;
-    });
-  }
-
-  return (
-    <div className="grocery">
-      {AISLE_ORDER.filter((a) => groups.has(a)).map((aisle) => {
-        const items = groups.get(aisle)!;
-        const done = items.filter((i) => checked.has(i.idx)).length;
-        return (
-          <div className="grocery-section" key={aisle}>
-            <div className="grocery-aisle">
-              {aisle}
-              <span className="grocery-count">
-                {done}/{items.length}
-              </span>
-            </div>
-            {items.map((ing) => (
-              <label
-                className={
-                  checked.has(ing.idx) ? "grocery-item done" : "grocery-item"
-                }
-                key={ing.idx}
-              >
-                <input
-                  type="checkbox"
-                  checked={checked.has(ing.idx)}
-                  onChange={() => toggle(ing.idx)}
-                />
-                <span className="grocery-text">{ing.text}</span>
-                {ing.price !== null && (
-                  <span className="grocery-price">
-                    ~${ing.price.toFixed(2)}
-                  </span>
-                )}
-              </label>
-            ))}
-          </div>
-        );
-      })}
     </div>
   );
 }

@@ -70,6 +70,9 @@ const N: Record<string, [number, number, number, number]> = {
   lasagne: [371, 13, 75, 1.5],
   pasta: [371, 13, 75, 1.5],
   "cauliflower rice": [25, 2, 5, 0.3],
+  // Spiralized vegetable "noodles" — the low-carb answer to a pasta dish
+  "zucchini noodles": [17, 1.2, 3.1, 0.3],
+  "courgette noodles": [17, 1.2, 3.1, 0.3],
   "rice noodles": [360, 6, 80, 0.6],
   noodles: [380, 13, 71, 4],
   "brown rice": [370, 7.9, 77, 2.9],
@@ -184,6 +187,8 @@ const CUP_WEIGHTS: Record<string, number> = {
   noodles: 100,
   "rice noodles": 100,
   "cauliflower rice": 110,
+  "zucchini noodles": 124,
+  "courgette noodles": 124,
   oats: 90,
   spinach: 30,
   kale: 20,
@@ -232,20 +237,69 @@ function cupWeightFor(ingredientName: string): number {
   return 240;
 }
 
-/** Find the best (longest) nutrition-table match inside an ingredient name. */
+/* ---------- Runtime food registry ---------- */
+
+// Foods resolved at runtime from an external source (USDA FoodData Central,
+// see lib/usda.ts) land here, keyed by the plain ingredient term they were
+// looked up under. The static table above always wins: it is hand-tuned for
+// the way recipes actually name things, and it is what the swap rules and the
+// price table are keyed to. This registry is purely the long tail.
+const RUNTIME: Record<string, [number, number, number, number]> = {};
+
+export function registerFood(key: string, per100g: Macros): void {
+  const k = key.toLowerCase().trim();
+  if (!k || k in N) return;
+  RUNTIME[k] = [per100g.calories, per100g.protein, per100g.carbs, per100g.fat];
+}
+
+/** Drop every runtime-registered food. Tests use this to stay deterministic. */
+export function resetRuntimeFoods(): void {
+  for (const k of Object.keys(RUNTIME)) delete RUNTIME[k];
+}
+
+/** Every key in the built-in table, in declaration order. */
+export function staticFoodKeys(): string[] {
+  return Object.keys(N);
+}
+
+/** Per-100g macros for an exact table key, static or runtime. */
+export function foodMacros(key: string): Macros | null {
+  const row = N[key] ?? RUNTIME[key];
+  if (!row) return null;
+  return { calories: row[0], protein: row[1], carbs: row[2], fat: row[3] };
+}
+
+/**
+ * Find the best (longest) nutrition match inside an ingredient name.
+ *
+ * Longest-wins is what makes "chicken stock" score as stock rather than as a
+ * chunk of chicken breast. The static table is searched first and only falls
+ * through to runtime entries when nothing built-in matched at all, so a USDA
+ * row can never quietly displace a curated one.
+ */
 export function lookupNutrition(
   name: string,
-): { key: string; per100g: Macros } | null {
+): { key: string; per100g: Macros; source: "table" | "external" } | null {
   const lower = name.toLowerCase();
-  let best: string | null = null;
-  for (const key of Object.keys(N)) {
-    if (lower.includes(key) && (!best || key.length > best.length)) {
-      best = key;
+  const pick = (table: Record<string, [number, number, number, number]>) => {
+    let best: string | null = null;
+    for (const key of Object.keys(table)) {
+      if (lower.includes(key) && (!best || key.length > best.length)) {
+        best = key;
+      }
     }
-  }
-  if (!best) return null;
-  const [calories, protein, carbs, fat] = N[best];
-  return { key: best, per100g: { calories, protein, carbs, fat } };
+    return best;
+  };
+
+  const staticHit = pick(N);
+  const key = staticHit ?? pick(RUNTIME);
+  if (!key) return null;
+  const [calories, protein, carbs, fat] = staticHit ? N[key] : RUNTIME[key];
+  return {
+    key,
+    per100g: { calories, protein, carbs, fat },
+    source: staticHit ? "table" : "external",
+  };
 }
 
 const FRACTIONS: Record<string, number> = {
@@ -454,4 +508,160 @@ export function scaleMacros(m: Macros, factor: number): Macros {
     carbs: m.carbs * factor,
     fat: m.fat * factor,
   };
+}
+
+/* ---------- Food families, for data-driven swap candidates ---------- */
+
+/**
+ * Culinary families whose members can stand in for one another by weight.
+ *
+ * The hand-written SWAP_RULES above only cover 17 pairs, which leaves plenty
+ * of recipes with nothing to try. Grouping the table lets the search generate
+ * a candidate for any listed ingredient — every member of its family — and
+ * then judge each one against the user's actual target, the same way the rules
+ * are judged.
+ *
+ * Membership is deliberately tight. Nothing here should read as absurd on the
+ * page: rice and quinoa trade places, garlic and lettuce do not. Ingredients
+ * with no family (aromatics, tomato products, stocks, spices) are never
+ * generated as candidates, though a rule may still name one.
+ */
+export const FOOD_FAMILY: Record<string, string> = {
+  // Poultry, sold and cooked interchangeably
+  "chicken breast": "poultry",
+  "chicken thigh": "poultry",
+  chicken: "poultry",
+  turkey: "poultry",
+  // Red meat and mince — what you brown in a pan for a sauce or a taco
+  "ground beef": "red meat",
+  "beef mince": "red meat",
+  "minced beef": "red meat",
+  "lean ground turkey": "red meat",
+  steak: "red meat",
+  beef: "red meat",
+  lamb: "red meat",
+  pork: "red meat",
+  "pork belly": "red meat",
+  "pork tenderloin": "red meat",
+  // Cured pork, used for its salt and fat rather than as a portion of meat
+  bacon: "cured pork",
+  "turkey bacon": "cured pork",
+  // Fish and shellfish
+  salmon: "seafood",
+  tuna: "seafood",
+  cod: "seafood",
+  "white fish": "seafood",
+  shrimp: "seafood",
+  prawns: "seafood",
+  // Cooking fats, all measured by the spoonful
+  butter: "cooking fat",
+  "light butter": "cooking fat",
+  "olive oil": "cooking fat",
+  "vegetable oil": "cooking fat",
+  "sesame oil": "cooking fat",
+  "coconut oil": "cooking fat",
+  oil: "cooking fat",
+  // Pourable dairy — what enriches a sauce
+  "heavy cream": "pourable dairy",
+  "double cream": "pourable dairy",
+  "evaporated milk": "pourable dairy",
+  "half and half": "pourable dairy",
+  cream: "pourable dairy",
+  "skim milk": "pourable dairy",
+  milk: "pourable dairy",
+  "coconut milk": "pourable dairy",
+  "light coconut milk": "pourable dairy",
+  // Spoonable cultured dairy — dollops and dressings
+  "greek yogurt": "cultured dairy",
+  yogurt: "cultured dairy",
+  "sour cream": "cultured dairy",
+  // Cheese. Soft and hard are kept apart: a spread is not a grating cheese.
+  "cream cheese": "soft cheese",
+  "light cream cheese": "soft cheese",
+  feta: "soft cheese",
+  parmesan: "hard cheese",
+  cheddar: "hard cheese",
+  "reduced-fat cheddar": "hard cheese",
+  "reduced-fat cheese": "hard cheese",
+  mozzarella: "hard cheese",
+  cheese: "hard cheese",
+  // Dried pasta shapes
+  "chickpea pasta": "pasta",
+  "whole-wheat pasta": "pasta",
+  fettuccine: "pasta",
+  spaghetti: "pasta",
+  linguine: "pasta",
+  penne: "pasta",
+  macaroni: "pasta",
+  lasagne: "pasta",
+  pasta: "pasta",
+  noodles: "pasta",
+  "rice noodles": "pasta",
+  "zucchini noodles": "pasta",
+  "courgette noodles": "pasta",
+  // Grains and their low-carb stand-ins
+  rice: "grain",
+  "brown rice": "grain",
+  quinoa: "grain",
+  "cauliflower rice": "grain",
+  // Starchy vegetables served as the base of a plate
+  potato: "starchy vegetable",
+  "sweet potato": "starchy vegetable",
+  // Wrappers
+  tortilla: "wrap",
+  "low-carb tortilla": "wrap",
+  // Crumb coatings
+  breadcrumbs: "crumb",
+  "bread crumbs": "crumb",
+  // Sweeteners, measured 1:1 in most recipes
+  sugar: "sweetener",
+  "monk fruit sweetener": "sweetener",
+  honey: "sweetener",
+  "maple syrup": "sweetener",
+  // Creamy condiments
+  mayonnaise: "creamy condiment",
+  "light mayonnaise": "creamy condiment",
+  // Pulses
+  "black beans": "pulse",
+  "kidney beans": "pulse",
+  chickpeas: "pulse",
+  lentils: "pulse",
+  beans: "pulse",
+  // Nuts and nut butters are bought by the bag and used by the handful
+  peanuts: "nut",
+  cashews: "nut",
+  almonds: "nut",
+  // Leafy greens that wilt into the same dishes
+  spinach: "leafy green",
+  kale: "leafy green",
+  cabbage: "leafy green",
+};
+
+// family -> members, built once
+const FAMILY_MEMBERS: Record<string, string[]> = {};
+for (const [key, family] of Object.entries(FOOD_FAMILY)) {
+  (FAMILY_MEMBERS[family] ??= []).push(key);
+}
+
+/**
+ * Every table key that could plausibly replace `key`, excluding `key` itself
+ * and anything that resolves to the same numbers (the pasta shapes are all
+ * one nutrition row, so swapping linguine for penne is not a swap).
+ */
+export function familyAlternatives(key: string): string[] {
+  const family = FOOD_FAMILY[key];
+  if (!family) return [];
+  const mine = foodMacros(key);
+  if (!mine) return [];
+  return FAMILY_MEMBERS[family].filter((other) => {
+    if (other === key) return false;
+    const theirs = foodMacros(other);
+    if (!theirs) return false;
+    return (
+      Math.abs(theirs.calories - mine.calories) > 1 ||
+      Math.abs(theirs.protein - mine.protein) > 0.5 ||
+      Math.abs(theirs.carbs - mine.carbs) > 0.5 ||
+      Math.abs(theirs.fat - mine.fat) > 0.5
+    );
+  });
 }

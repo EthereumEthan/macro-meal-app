@@ -65,6 +65,8 @@ export const PRICE_PER_100G: Record<string, number> = {
   lasagne: 0.4,
   pasta: 0.35,
   "cauliflower rice": 0.7,
+  "zucchini noodles": 0.9,
+  "courgette noodles": 0.9,
   "rice noodles": 0.6,
   noodles: 0.5,
   "brown rice": 0.3,
